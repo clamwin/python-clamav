@@ -42,7 +42,12 @@ c_uint_p = POINTER(c_uint)
 c_ulong_p = POINTER(c_ulong)
 c_char_pp = POINTER(c_char_p)
 
-libclamav = cdll.libclamav
+try:
+    libclamav = cdll.libclamav
+except Exception:
+    print 'Unable to load libclamav library, make sure it is in search path\n'
+    raise
+
 libclamav.cl_debug.argtypes = None
 libclamav.cl_debug.restype = None
 
