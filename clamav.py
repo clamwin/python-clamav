@@ -273,6 +273,10 @@ class Scanner(object):
         }
         for dbname in Scanner.DBNAMES:
             dbpath = os.path.join(self.dbpath, dbname + '.cvd')
+            if not os.path.isfile(dbpath):
+                dbpath = os.path.join(self.dbpath, dbname + '.cld')
+            if not os.path.isfile(dbpath):
+                continue
             cvd = self.libclamav.cl_cvdhead(dbpath)
             if cvd:
                 versions[dbname] = cvd.contents.version
