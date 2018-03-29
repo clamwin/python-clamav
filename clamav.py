@@ -152,18 +152,43 @@ CL_SUCCESS, \
     CL_ESTATE, \
     CL_ELAST_ERROR = range(34)
 
+is_clamwin = False
+
+# helpers used by clamwin
 if sys.platform == 'win32':
-    libclamav.cw_iswow64.argtypes = None
-    libclamav.cw_iswow64.restypes = c_int
+    try:
+        IsWow64Process = windll.kernel32.IsWow64Process
+        IsWow64Process.argtypes = (c_void_p, POINTER(c_int))
+        IsWow64Process.restypes = c_int
+        GetCurrentProcess = windll.kernel32.GetCurrentProcess
+        GetCurrentProcess.argtypes = None
+        GetCurrentProcess.restype = c_void_p
+    except AttributeError:
+        def isWow64():
+            return False
+    else:
+        def isWow64():
+            is_wow64 = c_int()
+            IsWow64Process(GetCurrentProcess(), byref(is_wow64))
+            return bool(is_wow64)
 
-    def isWow64():
-        return bool(libclamav.cw_iswow64())
+    try:
+        libclamav.cw_disablefsredir.argtypes = None
+        libclamav.cw_disablefsredir.restypes = c_int
+        libclamav.cw_revertfsredir.argtypes = None
+        libclamav.cw_revertfsredir.restypes = c_int
 
-    libclamav.cw_disablefsredir.argtypes = None
-    libclamav.cw_disablefsredir.restypes = c_int
+        def disableFsRedir():
+            return bool(libclamav.cw_disablefsredir())
 
-    def disableFsRedir():
-        return bool(libclamav.cw_disablefsredir())
+        def revertFsRedir():
+            return bool(libclamav.cw_revertfsredir())
+
+        is_clamwin = True
+    except AttributeError:
+        def disableFsRedir():
+            return False
+        revertFsRedir = disableFsRedir
 
 
 class ClamavException(Exception):
