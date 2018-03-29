@@ -30,6 +30,7 @@
 import sys
 import os
 from ctypes import *
+from ctypes.util import find_library
 
 __author__ = 'Gianluigi Tiesi'
 __email__ = 'sherpya@netfarm.it'
@@ -43,7 +44,7 @@ c_ulong_p = POINTER(c_ulong)
 c_char_pp = POINTER(c_char_p)
 
 try:
-    libclamav = cdll.libclamav
+    libclamav = cdll[find_library('clamav') or find_library('libclamav')]
 except Exception:
     print 'Unable to load libclamav library, make sure it is in search path\n'
     raise
