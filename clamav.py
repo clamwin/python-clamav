@@ -201,6 +201,10 @@ if sys.platform == 'win32':
         revertFsRedir = disableFsRedir
 
 
+def clStrError(error):
+    return str(libclamav.cl_strerror(error))
+
+
 class ClamavException(Exception):
     pass
 
