@@ -49,6 +49,9 @@ except Exception:
     print 'Unable to load libclamav library, make sure it is in search path\n'
     raise
 
+libclamav.cl_retdbdir.argtypes = None
+libclamav.cl_retdbdir.restype = c_char_p
+
 libclamav.cl_debug.argtypes = None
 libclamav.cl_debug.restype = None
 
@@ -210,12 +213,14 @@ class Scanner(object):
     dbstats = cl_stat()
     dbstats_p = byref(dbstats)
 
-    def __init__(self, dbpath, autoreload=False, debug=False):
+    def __init__(self, dbpath=None, autoreload=False, debug=False):
+        if dbpath is None:
+            dbpath = str(libclamav.cl_retdbdir())
         self.dbpath = dbpath
         self.autoreload = autoreload
         self.engine = None
 
-        if not os.path.isdir(dbpath):
+        if dbpath is None or not os.path.isdir(dbpath):
             raise ClamavException('Invalid database path')
 
         if debug:
@@ -294,7 +299,7 @@ class Scanner(object):
 
 
 if __name__ == '__main__':
-    scanner = Scanner(r'c:\clamav\db', autoreload=True)
+    scanner = Scanner(autoreload=True)
     print scanner.signo.value
     print scanner.getVersions()
     print scanner.scanFile('clam.exe')
