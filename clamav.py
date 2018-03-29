@@ -44,7 +44,8 @@ c_ulong_p = POINTER(c_ulong)
 c_char_pp = POINTER(c_char_p)
 
 try:
-    libclamav = cdll[find_library('clamav') or find_library('libclamav')]
+    library = find_library('clamav') or find_library('libclamav') or 'libclamav'
+    libclamav = cdll[library]
 except Exception:
     print 'Unable to load libclamav library, make sure it is in search path\n'
     raise
