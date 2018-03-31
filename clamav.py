@@ -288,9 +288,8 @@ class Scanner(object):
             raise ClamavException('No database loaded')
 
         virname = c_char_p()
-        scanned = c_ulong()
-        ret = self.libclamav.cl_scanfile(filename, byref(virname), byref(scanned), self.engine, 0)
-        return ret, virname.value, scanned.value
+        ret = self.libclamav.cl_scanfile(filename, byref(virname), None, self.engine, 0)
+        return ret, virname.value
 
     def getVersions(self):
         versions = {
