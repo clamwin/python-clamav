@@ -50,6 +50,9 @@ except Exception:
     print 'Unable to load libclamav library, make sure it is in search path\n'
     raise
 
+libclamav.cl_init.argtypes = (c_uint,)
+libclamav.cl_retdbdir.restype = c_int
+
 libclamav.cl_retdbdir.argtypes = None
 libclamav.cl_retdbdir.restype = c_char_p
 
@@ -207,6 +210,12 @@ def clStrError(error):
 
 class ClamavException(Exception):
     pass
+
+
+res = libclamav.cl_init(0)
+if res != CL_SUCCESS:
+    raise ClamavException(clStrError(res))
+del res
 
 
 class Scanner(object):
