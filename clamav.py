@@ -34,7 +34,7 @@ from ctypes.util import find_library
 
 __author__ = 'Gianluigi Tiesi'
 __email__ = 'sherpya@netfarm.it'
-__version__ = '0.99.4'
+__version__ = '0.101.0'
 
 
 cl_engine_p = c_void_p
@@ -94,6 +94,34 @@ class cl_stat(Structure):
 
 cl_stat_p = POINTER(cl_stat)
 
+
+# noinspection PyPep8Naming
+class cl_scan_options(Structure):
+    _fields_ = [
+        ('general', c_uint),
+        ('parse', c_uint),
+        ('heuristic', c_uint),
+        ('mail', c_uint),
+        ('dev', c_uint),
+    ]
+
+
+cl_scan_options_p = POINTER(cl_scan_options)
+
+libclamav.cl_retflevel.argtypes = None
+libclamav.cl_retflevel.restype = c_uint
+
+libclamav.cl_scanfile.restype = c_int
+if libclamav.cl_retflevel() < 101:
+    def scanoptions():
+        return 0
+    libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, c_uint)
+else:
+    def scanoptions():
+        return byref(cl_scan_options())
+    libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, cl_scan_options_p)
+
+
 libclamav.cl_statinidir.argtypes = (c_char_p, cl_stat_p)
 libclamav.cl_statinidir.restype = c_int
 
@@ -125,9 +153,6 @@ libclamav.cl_cvdhead.restype = cl_cvd_p
 
 libclamav.cl_cvdfree.argtypes = (cl_cvd_p,)
 libclamav.cl_cvdfree.restype = None
-
-libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, c_uint)
-libclamav.cl_scanfile.restype = c_int
 
 CL_CLEAN = 0,
 CL_SUCCESS, \
@@ -288,7 +313,7 @@ class Scanner(object):
             raise ClamavException('No database loaded')
 
         virname = c_char_p()
-        ret = self.libclamav.cl_scanfile(filename, byref(virname), None, self.engine, 0)
+        ret = self.libclamav.cl_scanfile(filename, byref(virname), None, self.engine, scanoptions())
         return ret, virname.value
 
     def getVersions(self):
