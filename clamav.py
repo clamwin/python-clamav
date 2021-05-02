@@ -388,6 +388,6 @@ class Scanner(object):
 
 if __name__ == '__main__':
     scanner = Scanner(autoreload=True)
+    print scanner.scanFile('clam.exe')
     print scanner.signo.value
     print scanner.getVersions()
-    print scanner.scanFile('clam.exe')
