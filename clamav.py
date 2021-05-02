@@ -202,6 +202,21 @@ CL_SUCCESS, \
     CL_ESTATE, \
     CL_ELAST_ERROR = range(34)
 
+CL_DB_PHISHING = 0x2
+CL_DB_PHISHING_URLS = 0x8
+CL_DB_PUA = 0x10
+CL_DB_PUA_MODE = 0x80
+CL_DB_PUA_INCLUDE = 0x100
+CL_DB_PUA_EXCLUDE = 0x200
+CL_DB_OFFICIAL_ONLY = 0x1000
+CL_DB_BYTECODE = 0x2000
+CL_DB_BYTECODE_STATS = 0x20000
+CL_DB_ENHANCED = 0x40000
+CL_DB_PCRE_STATS = 0x80000
+CL_DB_YARA_EXCLUDE = 0x100000
+CL_DB_YARA_ONLY = 0x200000
+
+CL_DB_STDOPT = CL_DB_PHISHING | CL_DB_PHISHING_URLS | CL_DB_BYTECODE
 
 CL_ENGINE_MAX_SCANSIZE, \
     CL_ENGINE_MAX_FILESIZE, \
@@ -302,7 +317,7 @@ class Scanner(object):
     dbstats = cl_stat()
     dbstats_p = byref(dbstats)
 
-    def __init__(self, dbpath=None, autoreload=False, debug=False):
+    def __init__(self, dbpath=None, autoreload=False, dboptions=CL_DB_STDOPT, debug=False):
         if dbpath is None:
             dbpath = str(libclamav.cl_retdbdir())
         self.dbpath = dbpath
@@ -312,11 +327,12 @@ class Scanner(object):
         if dbpath is None or not os.path.isdir(dbpath):
             raise ClamavException('Invalid database path')
 
+        self.dboptions = dboptions
+
         if debug:
             self.libclamav.cl_debug()
 
         self.signo = c_uint()
-        self.dboptions = 0
 
     def __del__(self):
         if self.dbstats.entries:
