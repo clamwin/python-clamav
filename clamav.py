@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2018 Gianluigi Tiesi <sherpya@netfarm.it>
+# Copyright (c) 2018-2021 Gianluigi Tiesi <sherpya@netfarm.it>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -294,35 +294,58 @@ if sys.platform == 'win32':
         revertFsRedir = disableFsRedir
 
 
-def clStrError(error):
-    return str(libclamav.cl_strerror(error))
-
-
 class ClamavException(Exception):
-    pass
+    def __init__(self, message):
+        if isinstance(message, int):
+            message = str(libclamav.cl_strerror(message))
+        Exception.__init__(self, message)
 
 
 res = libclamav.cl_init(0)
 if res != CL_SUCCESS:
-    raise ClamavException(clStrError(res))
+    raise ClamavException(res)
 del res
 
 
-class Scanner(object):
-    __slots__ = ['dbpath', 'autoreload', 'dbstats', 'engine', 'signo', 'dboptions']
+def clfunc(func):
+    def wrapper(_, *args, **kwargs):
+        raise_on_fail = kwargs.get('raise_on_fail', True)
+        ret = func(*args)
+        if raise_on_fail and (ret != CL_SUCCESS):
+            raise ClamavException(ret)
+        return ret
+    return wrapper
 
+
+class Scanner(object):
     DBNAMES = ('main', 'daily', 'bytecode')
 
-    libclamav = libclamav
     dbstats = cl_stat()
     dbstats_p = byref(dbstats)
+    signo = c_uint()
+    engine = None
+
+    cl_statfree = clfunc(libclamav.cl_statfree)
+    cl_engine_free = clfunc(libclamav.cl_engine_free)
+    cl_statinidir = clfunc(libclamav.cl_statinidir)
+    cl_load = clfunc(libclamav.cl_load)
+    cl_engine_compile = clfunc(libclamav.cl_engine_compile)
+    cl_statchkdir = libclamav.cl_statchkdir
+    cl_debug = libclamav.cl_debug
+    cl_engine_new = libclamav.cl_engine_new
+    cl_scanfile = libclamav.cl_scanfile
+    cl_retver = libclamav.cl_retver
+    cl_cvdhead = libclamav.cl_cvdhead
+    cl_cvdfree = libclamav.cl_cvdfree
+
+    def cl_retdbdir(self):
+        return str(libclamav.cl_retdbdir)
 
     def __init__(self, dbpath=None, autoreload=False, dboptions=CL_DB_STDOPT, debug=False):
         if dbpath is None:
             dbpath = str(libclamav.cl_retdbdir())
         self.dbpath = dbpath
         self.autoreload = autoreload
-        self.engine = None
 
         if dbpath is None or not os.path.isdir(dbpath):
             raise ClamavException('Invalid database path')
@@ -330,72 +353,68 @@ class Scanner(object):
         self.dboptions = dboptions
 
         if debug:
-            self.libclamav.cl_debug()
-
-        self.signo = c_uint()
+            self.cl_debug()
 
     def __del__(self):
         if self.dbstats.entries:
-            self.libclamav.cl_statfree(self.dbstats_p)
+            self.cl_statfree(self.dbstats_p, raise_on_fail=False)
         if self.engine:
-            self.libclamav.cl_engine_free(self.engine)
-
-    def cl(self, func, *args):
-        ret = func(*args)
-        if ret != CL_SUCCESS:
-            raise ClamavException(self.libclamav.cl_strerror(ret))
+            self.cl_engine_free(self.engine, raise_on_fail=False)
 
     def loadDB(self):
         if self.dbstats.entries:
-            self.cl(self.libclamav.cl_statfree, self.dbstats_p)
+            self.cl_statfree(self.dbstats_p)
 
-        if self.engine:
-            self.cl(self.libclamav.cl_engine_free, self.engine)
+        if self.engine is not None:
+            self.cl_engine_free(self.engine)
 
-        self.engine = libclamav.cl_engine_new()
-        if not self.engine:
+        self.engine = self.cl_engine_new()
+        if self.engine is None:
             raise ClamavException('cl_engine_new() failed')
 
-        self.cl(self.libclamav.cl_statinidir, self.dbpath, self.dbstats_p)
-        self.cl(self.libclamav.cl_load, self.dbpath, self.engine, byref(self.signo), self.dboptions)
-        self.cl(self.libclamav.cl_engine_compile, self.engine)
+        self.cl_statinidir(self.dbpath, self.dbstats_p)
+        self.cl_load(self.dbpath, self.engine, byref(self.signo), self.dboptions)
+        self.cl_engine_compile(self.engine)
 
     def checkAndLoadDB(self):
         if not self.engine:
             return self.loadDB()
 
-        ret = self.libclamav.cl_statchkdir(self.dbstats_p)
-        if ret == CL_SUCCESS:
+        ret = self.cl_statchkdir(self.dbstats_p)
+
+        if ret == 0:  # No change
             pass
-        elif ret == 1:
+        elif ret == 1:  # Some change occurred
             self.loadDB()
         else:
-            raise ClamavException(self.libclamav.cl_strerror(ret))
+            raise ClamavException(ret)
 
     def scanFile(self, filename):
         if self.autoreload:
             self.checkAndLoadDB()
-        if not self.engine:
+        if self.engine is None:
             raise ClamavException('No database loaded')
 
         virname = c_char_p()
-        ret = self.libclamav.cl_scanfile(filename, byref(virname), None, self.engine, scanoptions())
+        ret = self.cl_scanfile(filename, byref(virname), None, self.engine, scanoptions())
         return ret, virname.value
 
     def getVersions(self):
         versions = {
-            'clamav': self.libclamav.cl_retver()
+            'clamav': self.cl_retver()
         }
+
         for dbname in Scanner.DBNAMES:
             dbpath = os.path.join(self.dbpath, dbname + '.cvd')
             if not os.path.isfile(dbpath):
                 dbpath = os.path.join(self.dbpath, dbname + '.cld')
             if not os.path.isfile(dbpath):
                 continue
-            cvd = self.libclamav.cl_cvdhead(dbpath)
+
+            cvd = self.cl_cvdhead(dbpath)
             if cvd:
                 versions[dbname] = cvd.contents.version
-                self.libclamav.cl_cvdfree(cvd)
+                self.cl_cvdfree(cvd)
             else:
                 versions[dbname] = 0
 
