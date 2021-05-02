@@ -428,6 +428,8 @@ class Scanner(object):
 
         virname = c_char_p()
         ret = self.cl_scanfile(filename, byref(virname), None, self.engine, scanoptions())
+        if ret not in (CL_CLEAN, CL_VIRUS):
+            raise ClamavException(ret)
         return ret, virname.value
 
     def getVersions(self):
