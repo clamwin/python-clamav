@@ -75,6 +75,18 @@ libclamav.cl_engine_free.restype = c_int
 libclamav.cl_load.argtypes = (c_char_p, cl_engine_p, c_uint_p, c_uint)
 libclamav.cl_load.restype = c_int
 
+libclamav.cl_engine_set_num.argtypes = (cl_engine_p, c_int, c_longlong)
+libclamav.cl_engine_set_num.restype = c_int
+
+libclamav.cl_engine_get_num.argtypes = (cl_engine_p, c_int, c_int_p)
+libclamav.cl_engine_get_num.restype = c_longlong
+
+libclamav.cl_engine_set_str.argtypes = (cl_engine_p, c_int, c_char_p)
+libclamav.cl_engine_set_str.restype = c_int
+
+libclamav.cl_engine_get_str.argtypes = (cl_engine_p, c_int, c_int_p)
+libclamav.cl_engine_get_str.restype = c_char_p
+
 libclamav.cl_engine_compile.argtypes = (cl_engine_p,)
 libclamav.cl_engine_compile.restype = c_int
 
@@ -118,7 +130,7 @@ if libclamav.cl_retflevel() < 101:
     libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, c_uint)
 else:
     def scanoptions():
-        return byref(cl_scan_options())
+        return byref(cl_scan_options(parse=c_uint(~0)))
     libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, cl_scan_options_p)
 
 
@@ -189,6 +201,44 @@ CL_SUCCESS, \
     CL_EBUSY, \
     CL_ESTATE, \
     CL_ELAST_ERROR = range(34)
+
+
+CL_ENGINE_MAX_SCANSIZE, \
+    CL_ENGINE_MAX_FILESIZE, \
+    CL_ENGINE_MAX_RECURSION, \
+    CL_ENGINE_MAX_FILES, \
+    CL_ENGINE_MIN_CC_COUNT, \
+    CL_ENGINE_MIN_SSN_COUNT, \
+    CL_ENGINE_PUA_CATEGORIES, \
+    CL_ENGINE_DB_OPTIONS, \
+    CL_ENGINE_DB_VERSION, \
+    CL_ENGINE_DB_TIME, \
+    CL_ENGINE_AC_ONLY, \
+    CL_ENGINE_AC_MINDEPTH, \
+    CL_ENGINE_AC_MAXDEPTH, \
+    CL_ENGINE_TMPDIR, \
+    CL_ENGINE_KEEPTMP, \
+    CL_ENGINE_BYTECODE_SECURITY, \
+    CL_ENGINE_BYTECODE_TIMEOUT, \
+    CL_ENGINE_BYTECODE_MODE, \
+    CL_ENGINE_MAX_EMBEDDEDPE, \
+    CL_ENGINE_MAX_HTMLNORMALIZE, \
+    CL_ENGINE_MAX_HTMLNOTAGS, \
+    CL_ENGINE_MAX_SCRIPTNORMALIZE, \
+    CL_ENGINE_MAX_ZIPTYPERCG, \
+    CL_ENGINE_FORCETODISK, \
+    CL_ENGINE_DISABLE_CACHE, \
+    CL_ENGINE_DISABLE_PE_STATS, \
+    CL_ENGINE_STATS_TIMEOUT, \
+    CL_ENGINE_MAX_PARTITIONS, \
+    CL_ENGINE_MAX_ICONSPE, \
+    CL_ENGINE_MAX_RECHWP3, \
+    CL_ENGINE_MAX_SCANTIME, \
+    CL_ENGINE_PCRE_MATCH_LIMIT, \
+    CL_ENGINE_PCRE_RECMATCH_LIMIT, \
+    CL_ENGINE_PCRE_MAX_FILESIZE, \
+    CL_ENGINE_DISABLE_PE_CERTS, \
+    CL_ENGINE_PE_DUMPCERTS = range(36)
 
 is_clamwin = False
 
