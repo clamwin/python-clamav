@@ -166,7 +166,7 @@ libclamav.cl_cvdhead.restype = cl_cvd_p
 libclamav.cl_cvdfree.argtypes = (cl_cvd_p,)
 libclamav.cl_cvdfree.restype = None
 
-CL_CLEAN = 0,
+CL_CLEAN = 0
 CL_SUCCESS, \
     CL_VIRUS, \
     CL_ENULLARG, \
