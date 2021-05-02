@@ -29,6 +29,7 @@
 
 import sys
 import os
+import tempfile
 from ctypes import *
 from ctypes.util import find_library
 
@@ -75,6 +76,18 @@ libclamav.cl_engine_free.restype = c_int
 libclamav.cl_load.argtypes = (c_char_p, cl_engine_p, c_uint_p, c_uint)
 libclamav.cl_load.restype = c_int
 
+libclamav.cl_engine_set_num.argtypes = (cl_engine_p, c_int, c_longlong)
+libclamav.cl_engine_set_num.restype = c_int
+
+libclamav.cl_engine_get_num.argtypes = (cl_engine_p, c_int, c_int_p)
+libclamav.cl_engine_get_num.restype = c_longlong
+
+libclamav.cl_engine_set_str.argtypes = (cl_engine_p, c_int, c_char_p)
+libclamav.cl_engine_set_str.restype = c_int
+
+libclamav.cl_engine_get_str.argtypes = (cl_engine_p, c_int, c_int_p)
+libclamav.cl_engine_get_str.restype = c_char_p
+
 libclamav.cl_engine_compile.argtypes = (cl_engine_p,)
 libclamav.cl_engine_compile.restype = c_int
 
@@ -117,8 +130,8 @@ if libclamav.cl_retflevel() < 101:
         return 0
     libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, c_uint)
 else:
-    def scanoptions():
-        return byref(cl_scan_options())
+    def scanoptions():                      
+        return byref(cl_scan_options(parse=~0))
     libclamav.cl_scanfile.argtypes = (c_char_p, c_char_pp, c_ulong_p, cl_engine_p, cl_scan_options_p)
 
 
@@ -189,6 +202,44 @@ CL_SUCCESS, \
     CL_EBUSY, \
     CL_ESTATE, \
     CL_ELAST_ERROR = range(34)
+    
+
+CL_ENGINE_MAX_SCANSIZE, \
+    CL_ENGINE_MAX_FILESIZE, \
+    CL_ENGINE_MAX_RECURSION, \
+    CL_ENGINE_MAX_FILES, \
+    CL_ENGINE_MIN_CC_COUNT, \
+    CL_ENGINE_MIN_SSN_COUNT, \
+    CL_ENGINE_PUA_CATEGORIES, \
+    CL_ENGINE_DB_OPTIONS, \
+    CL_ENGINE_DB_VERSION, \
+    CL_ENGINE_DB_TIME, \
+    CL_ENGINE_AC_ONLY, \
+    CL_ENGINE_AC_MINDEPTH, \
+    CL_ENGINE_AC_MAXDEPTH, \
+    CL_ENGINE_TMPDIR, \
+    CL_ENGINE_KEEPTMP, \
+    CL_ENGINE_BYTECODE_SECURITY, \
+    CL_ENGINE_BYTECODE_TIMEOUT, \
+    CL_ENGINE_BYTECODE_MODE, \
+    CL_ENGINE_MAX_EMBEDDEDPE, \
+    CL_ENGINE_MAX_HTMLNORMALIZE, \
+    CL_ENGINE_MAX_HTMLNOTAGS, \
+    CL_ENGINE_MAX_SCRIPTNORMALIZE, \
+    CL_ENGINE_MAX_ZIPTYPERCG, \
+    CL_ENGINE_FORCETODISK, \
+    CL_ENGINE_DISABLE_CACHE, \
+    CL_ENGINE_DISABLE_PE_STATS, \
+    CL_ENGINE_STATS_TIMEOUT, \
+    CL_ENGINE_MAX_PARTITIONS, \
+    CL_ENGINE_MAX_ICONSPE, \
+    CL_ENGINE_MAX_RECHWP3, \
+    CL_ENGINE_MAX_SCANTIME, \
+    CL_ENGINE_PCRE_MATCH_LIMIT, \
+    CL_ENGINE_PCRE_RECMATCH_LIMIT, \
+    CL_ENGINE_PCRE_MAX_FILESIZE, \
+    CL_ENGINE_DISABLE_PE_CERTS, \
+    CL_ENGINE_PE_DUMPCERTS = range(36)
 
 is_clamwin = False
 
@@ -244,7 +295,7 @@ del res
 
 
 class Scanner(object):
-    __slots__ = ['dbpath', 'autoreload', 'dbstats', 'engine', 'signo', 'dboptions']
+    __slots__ = ['tmpdir', 'dbpath', 'autoreload', 'dbstats', 'engine', 'signo', 'dboptions']
 
     DBNAMES = ('main', 'daily', 'bytecode')
 
@@ -252,15 +303,20 @@ class Scanner(object):
     dbstats = cl_stat()
     dbstats_p = byref(dbstats)
 
-    def __init__(self, dbpath=None, autoreload=False, debug=False):
+    def __init__(self, tmpdir=None, dbpath=None, autoreload=False, debug=False):
         if dbpath is None:
             dbpath = str(libclamav.cl_retdbdir())
         self.dbpath = dbpath
         self.autoreload = autoreload
+        if tmpdir is None:
+            tmpdir = tempfile.gettempdir()
+        self.tmpdir = tmpdir
         self.engine = None
 
         if dbpath is None or not os.path.isdir(dbpath):
             raise ClamavException('Invalid database path')
+        if tmpdir is None or not os.path.isdir(tmpdir):
+            raise ClamavException('Invalid temp path')
 
         if debug:
             self.libclamav.cl_debug()
@@ -289,8 +345,14 @@ class Scanner(object):
         self.engine = libclamav.cl_engine_new()
         if not self.engine:
             raise ClamavException('cl_engine_new() failed')
-
+       
         self.cl(self.libclamav.cl_statinidir, self.dbpath, self.dbstats_p)
+        self.cl(self.libclamav.cl_engine_set_num, self.engine, CL_ENGINE_MAX_SCANSIZE, 1048576 * 50)
+        self.cl(self.libclamav.cl_engine_set_num, self.engine, CL_ENGINE_MAX_FILESIZE, 1048576 * 50)
+        self.cl(self.libclamav.cl_engine_set_num, self.engine, CL_ENGINE_MAX_FILES, 500)
+        self.cl(self.libclamav.cl_engine_set_num, self.engine, CL_ENGINE_MAX_RECURSION, 20)
+        self.cl(self.libclamav.cl_engine_set_str, self.engine, CL_ENGINE_TMPDIR, self.tmpdir)
+        
         self.cl(self.libclamav.cl_load, self.dbpath, self.engine, byref(self.signo), self.dboptions)
         self.cl(self.libclamav.cl_engine_compile, self.engine)
 
@@ -337,7 +399,9 @@ class Scanner(object):
 
 
 if __name__ == '__main__':
-    scanner = Scanner(autoreload=True)
+    scanner = Scanner(dbpath='C:\Documents and Settings\All Users\.clamwin\db', autoreload=True)
+    print scanner.checkAndLoadDB()   
     print scanner.signo.value
-    print scanner.getVersions()
+    print scanner.getVersions()    
     print scanner.scanFile('clam.exe')
+    print scanner.scanFile('clam.zip')
