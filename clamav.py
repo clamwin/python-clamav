@@ -307,6 +307,15 @@ if res != CL_SUCCESS:
 del res
 
 
+def def_engine_options():
+    return {
+        CL_ENGINE_MAX_SCANSIZE: 1048576 * 50,
+        CL_ENGINE_MAX_FILESIZE: 1048576 * 50,
+        CL_ENGINE_MAX_FILES: 500,
+        CL_ENGINE_MAX_RECURSION: 20
+    }
+
+
 def clfunc(func):
     def wrapper(_, *args, **kwargs):
         raise_on_fail = kwargs.get('raise_on_fail', True)
@@ -330,6 +339,8 @@ class Scanner(object):
     cl_statinidir = clfunc(libclamav.cl_statinidir)
     cl_load = clfunc(libclamav.cl_load)
     cl_engine_compile = clfunc(libclamav.cl_engine_compile)
+    cl_engine_set_num = clfunc(libclamav.cl_engine_set_num)
+    cl_engine_set_str = clfunc(libclamav.cl_engine_set_str)
     cl_statchkdir = libclamav.cl_statchkdir
     cl_debug = libclamav.cl_debug
     cl_engine_new = libclamav.cl_engine_new
@@ -341,11 +352,13 @@ class Scanner(object):
     def cl_retdbdir(self):
         return str(libclamav.cl_retdbdir)
 
-    def __init__(self, dbpath=None, autoreload=False, dboptions=CL_DB_STDOPT, debug=False):
+    def __init__(self, dbpath=None, autoreload=False, dboptions=CL_DB_STDOPT, engine_options=None, debug=False):
         if dbpath is None:
             dbpath = str(libclamav.cl_retdbdir())
         self.dbpath = dbpath
         self.autoreload = autoreload
+
+        self.engine_options = engine_options or def_engine_options()
 
         if dbpath is None or not os.path.isdir(dbpath):
             raise ClamavException('Invalid database path')
@@ -361,6 +374,15 @@ class Scanner(object):
         if self.engine:
             self.cl_engine_free(self.engine, raise_on_fail=False)
 
+    def setEngineOption(self, opt, value):
+        if not isinstance(value, (int, str)):
+            raise ClamavException('Invalid option value type %s: %r' % (type(value), value))
+        self.engine_options[opt] = value
+
+    def setEngineOptions(self, options):
+        for opt, value in options.items():
+            self.setEngineOption(opt, value)
+
     def loadDB(self):
         if self.dbstats.entries:
             self.cl_statfree(self.dbstats_p)
@@ -373,6 +395,15 @@ class Scanner(object):
             raise ClamavException('cl_engine_new() failed')
 
         self.cl_statinidir(self.dbpath, self.dbstats_p)
+
+        for opt, value in self.engine_options.items():
+            if isinstance(value, int):
+                self.cl_engine_set_num(self.engine, opt, value)
+            elif isinstance(value, str):
+                self.cl_engine_set_str(self.engine, opt, value)
+            else:
+                raise ClamavException('Invalid option value type %s: %r' % (type(value), value))
+
         self.cl_load(self.dbpath, self.engine, byref(self.signo), self.dboptions)
         self.cl_engine_compile(self.engine)
 
@@ -422,7 +453,10 @@ class Scanner(object):
 
 
 if __name__ == '__main__':
+    import tempfile
     scanner = Scanner(autoreload=True)
+    scanner.setEngineOption(CL_ENGINE_TMPDIR, tempfile.gettempdir())
     print scanner.scanFile('clam.exe')
+    print scanner.scanFile('clam.zip')
     print scanner.signo.value
     print scanner.getVersions()
